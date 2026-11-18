@@ -71,7 +71,21 @@ export const textMessageSchema: JSONSchema7 = {
   properties: {
     number: { ...numberDefinition },
     text: { type: 'string' },
-    linkPreview: { type: 'boolean' },
+    // Promos da Casa: true/false ou { url, title, description, image }
+    linkPreview: {
+      anyOf: [
+        { type: 'boolean' },
+        {
+          type: 'object',
+          properties: {
+            url: { type: 'string' },
+            title: { type: 'string' },
+            description: { type: 'string' },
+            image: { type: 'string' },
+          },
+        },
+      ],
+    },
     delay: {
       type: 'integer',
       description: 'Enter a value in milliseconds',

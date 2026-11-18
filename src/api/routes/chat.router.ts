@@ -5,6 +5,7 @@ import {
   DeleteMessage,
   getBase64FromMediaMessageDto,
   MarkChatUnreadDto,
+  NewsletterFetchDto,
   NumberDto,
   PrivacySettingDto,
   ProfileNameDto,
@@ -208,6 +209,22 @@ export class ChatRouter extends RouterBroker {
           schema: profilePictureSchema,
           ClassRef: ProfilePictureDto,
           execute: (instance, data) => chatController.fetchBusinessProfile(instance, data),
+        });
+
+        return res.status(HttpStatus.OK).json(response);
+      })
+      .post(this.routerPath('fetchNewsletterMessages'), ...guards, async (req, res) => {
+        // Promos da Casa: body { jid: "120363...@newsletter", count?: 20, since?: <unix> }
+        const response = await this.dataValidate<NewsletterFetchDto>({
+          request: req,
+          schema: {
+            $id: 'https://evolution-api.com/schemas/newsletterFetch.json',
+            type: 'object',
+            properties: { jid: { type: 'string' }, count: { type: 'integer' }, since: { type: 'integer' } },
+            required: ['jid'],
+          } as any,
+          ClassRef: NewsletterFetchDto,
+          execute: (instance, data) => chatController.fetchNewsletterMessages(instance, data),
         });
 
         return res.status(HttpStatus.OK).json(response);

@@ -107,6 +107,7 @@ import makeWASocket, {
   generateWAMessageFromContent,
   getAggregateVotesInPollMessage,
   GetCatalogOptions,
+  getBinaryNodeChild,
   getContentType,
   getDevice,
   GroupMetadata,
@@ -663,7 +664,8 @@ export class BaileysStartupService extends ChannelStartupService {
 
         const isGroupJid = this.localSettings.groupsIgnore && isJidGroup(jid);
         const isBroadcast = !this.localSettings.readStatus && isJidBroadcast(jid);
-        const isNewsletter = isJidNewsletter(jid);
+        // Promos da Casa: com READ_NEWSLETTERS=true as mensagens de canal (@newsletter) deixam de ser ignoradas.
+        const isNewsletter = isJidNewsletter(jid) && process.env.READ_NEWSLETTERS !== 'true';
 
         return isGroupJid || isBroadcast || isNewsletter;
       },
@@ -2338,7 +2340,13 @@ export class BaileysStartupService extends ChannelStartupService {
         }
       }
 
-      const linkPreview = options?.linkPreview != false ? undefined : false;
+      let linkPreview: any = options?.linkPreview != false ? undefined : false;
+      // Promos da Casa: linkPreview pode vir como objeto { url, title, description, image } e o cartão é montado aqui,
+      // sem o servidor precisar abrir a página do link.
+      const customPreview: any = options?.linkPreview;
+      if (customPreview && typeof customPreview === 'object') {
+        linkPreview = await this.buildCustomLinkPreview(customPreview);
+      }
 
       let quoted: WAMessage;
 
@@ -2626,6 +2634,79 @@ export class BaileysStartupService extends ChannelStartupService {
   }
 
   // Send Message Controller
+  // Promos da Casa: cartão de prévia de link montado com dados nossos (título, descrição e imagem do produto).
+  private async buildCustomLinkPreview(lp: { url?: string; title?: string; description?: string; image?: string }) {
+    const url = String(lp?.url || '');
+    const urlInfo: any = {
+      'canonical-url': url,
+      'matched-text': url,
+      title: String(lp?.title || ''),
+      description: String(lp?.description || ''),
+    };
+    if (lp?.image) {
+      try {
+        const media = /^https?:\/\//i.test(lp.image)
+          ? { url: lp.image }
+          : Buffer.from(String(lp.image).replace(/^data:[^,]+,/, ''), 'base64');
+        const { imageMessage } = await prepareWAMessageMedia({ image: media } as any, {
+          upload: this.client.waUploadToServer,
+          mediaTypeOverride: 'thumbnail-link',
+        } as any);
+        urlInfo.jpegThumbnail = imageMessage?.jpegThumbnail ? Buffer.from(imageMessage.jpegThumbnail) : undefined;
+        urlInfo.highQualityThumbnail = imageMessage || undefined;
+      } catch (error) {
+        this.logger.warn(`custom link preview: image failed (${error?.message})`);
+      }
+    }
+    return urlInfo;
+  }
+
+  // Promos da Casa: lê as últimas postagens de um canal (@newsletter) direto do WhatsApp (o número precisa seguir o canal).
+  public async fetchNewsletterMessages(data: { jid: string; count?: number; since?: number }) {
+    const jid = String(data?.jid || '').includes('@') ? String(data.jid) : `${data?.jid}@newsletter`;
+    const count = Math.min(Math.max(Number(data?.count) || 20, 1), 100);
+    const result: any = await (this.client as any).newsletterFetchMessages(
+      jid,
+      count,
+      typeof data?.since === 'number' ? data.since : undefined,
+      undefined,
+    );
+    const messages: any[] = [];
+    const walk = (node: any) => {
+      if (!node || typeof node !== 'object') return;
+      if (node.tag === 'message') {
+        const plaintext = getBinaryNodeChild(node, 'plaintext');
+        if (plaintext?.content) {
+          try {
+            const buf =
+              typeof plaintext.content === 'string'
+                ? Buffer.from(plaintext.content, 'binary')
+                : Buffer.from(plaintext.content as Uint8Array);
+            const message: any = proto.Message.decode(buf).toJSON();
+            const text =
+              message?.conversation ||
+              message?.extendedTextMessage?.text ||
+              message?.imageMessage?.caption ||
+              message?.videoMessage?.caption ||
+              '';
+            messages.push({
+              id: node.attrs?.message_id || node.attrs?.server_id,
+              serverId: node.attrs?.server_id,
+              timestamp: Number(node.attrs?.t) || null,
+              text,
+              message,
+            });
+          } catch (error) {
+            this.logger.warn(`newsletter message decode failed (${error?.message})`);
+          }
+        }
+      }
+      if (Array.isArray(node.content)) node.content.forEach(walk);
+    };
+    walk(result);
+    return { jid, count: messages.length, messages };
+  }
+
   public async textMessage(data: SendTextDto, isIntegration = false) {
     const text = data.text;
 

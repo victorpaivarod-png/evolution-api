@@ -13,6 +13,7 @@ import {
   SendPresenceDto,
   UpdateMessageDto,
   WhatsAppNumberDto,
+  NewsletterFetchDto,
 } from '@api/dto/chat.dto';
 import { InstanceDto } from '@api/dto/instance.dto';
 import { Query } from '@api/repository/repository.service';
@@ -44,6 +45,11 @@ export class ChatController {
 
   public async fetchProfilePicture({ instanceName }: InstanceDto, data: NumberDto) {
     return await this.waMonitor.waInstances[instanceName].profilePicture(data.number);
+  }
+
+  // Promos da Casa: últimas postagens de um canal (@newsletter).
+  public async fetchNewsletterMessages({ instanceName }: InstanceDto, data: NewsletterFetchDto) {
+    return await this.waMonitor.waInstances[instanceName].fetchNewsletterMessages(data);
   }
 
   public async fetchProfile({ instanceName }: InstanceDto, data: NumberDto) {

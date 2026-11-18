@@ -5,11 +5,19 @@ export class Quoted {
   message: proto.IMessage;
 }
 
+// Promos da Casa: prévia de link montada por nós.
+export class CustomLinkPreview {
+  url?: string;
+  title?: string;
+  description?: string;
+  image?: string;
+}
+
 export class Options {
   delay?: number;
   presence?: WAPresence;
   quoted?: Quoted;
-  linkPreview?: boolean;
+  linkPreview?: boolean | CustomLinkPreview;
   encoding?: boolean;
   mentionsEveryOne?: boolean;
   mentioned?: string[];
@@ -40,7 +48,7 @@ export class Metadata {
   number: string;
   delay?: number;
   quoted?: Quoted;
-  linkPreview?: boolean;
+  linkPreview?: boolean | CustomLinkPreview;
   mentionsEveryOne?: boolean;
   mentioned?: string[];
   encoding?: boolean;

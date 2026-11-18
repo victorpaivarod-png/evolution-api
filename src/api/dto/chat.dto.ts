@@ -127,3 +127,10 @@ export class BlockUserDto {
   number: string;
   status: 'block' | 'unblock';
 }
+
+// Promos da Casa: leitura das postagens de um canal (@newsletter).
+export class NewsletterFetchDto {
+  jid: string;
+  count?: number;
+  since?: number;
+}
